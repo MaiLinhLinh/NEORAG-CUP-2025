@@ -51,6 +51,7 @@ def init_session():
         ]
     if "history" not in st.session_state:
         st.session_state.history = []
+    
 
 # Hàm load dữ liệu và setup
 @st.cache_resource
@@ -87,15 +88,19 @@ def handle_query(query, embedding, vector_db, reranker, router):
     best_route = route_result[1] # lấy tên router
     if best_route == "uncertain":
         best_route = "chitchat"
+        messages_for_answer = [
+            {"role": "system", "content": st.session_state.messages[0]["content"]},
+            {"role": "user", "content": query}
+        ]
     st.chat_message("assistant").markdown(f"**[Định tuyến]:** `{best_route}`")
     if best_route == "info_CLB":
-        #reflection = Reflection(openai)
+        reflection = Reflection(openai)
 
-        #rewritten_query = reflection._rewrite(st.session_state.messages, query)
+        rewritten_query = reflection._rewrite(st.session_state.messages, query)
     
         #embedding câu hỏi
         # Tạo embedding cho câu hỏi của người dùng
-        user_embedding = embedding.encode(query)
+        user_embedding = embedding.encode(rewritten_query)
 
             # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
         results = vector_db.query("information",user_embedding,limit= 60)
@@ -114,7 +119,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
                 break
         
         passages = [result["information"] for result in results]
-        scores, reranker_passages = reranker(query, passages)
+        scores, reranker_passages = reranker(rewritten_query, passages)
 
             # (5) Map ngược passage -> result gốc để không mất title/metadata
             #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
@@ -130,7 +135,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
             
-        reranked_results = reranked_results[:20]
+        reranked_results = reranked_results[:15]
         
             # In kết quả sau reranking
         dem = 0
@@ -146,11 +151,17 @@ def handle_query(query, embedding, vector_db, reranker, router):
 
             #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         context = "\n".join(result["information"] for result in reranked_results)
-
+        
         base_prompt = st.session_state.messages[0]["content"]
-        new_context = base_prompt + f"\nCâu hỏi: {query}\n" + f"\nThông tin liên quan:\n{context}"
-        st.session_state.messages[0]["content"] = new_context    
-            
+        
+        new_context = base_prompt + f"\nCâu hỏi: {rewritten_query}\n" + f"\nThông tin liên quan:\n{context}"
+        #st.session_state.messages[0]["content"] = new_context    
+        
+        messages_for_answer = [
+            {"role": "system", "content": base_prompt},
+            {"role": "user",
+            "content": new_context}
+        ]
          
     #else:
     #    st.session_state.messages.append({"role":"user", "content": query})
@@ -158,7 +169,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
     # Gọi openAI dạng stream
     response_stream = embedding.client.chat.completions.create(
         model = "gpt-4o-mini",
-        messages=st.session_state.messages,
+        messages=messages_for_answer,
         stream=True
     )
     with st.chat_message("assistant"):

@@ -14,7 +14,7 @@ class Reflection:
         """
 
         # Lấy 10 messages gần nhất không phải roke = system
-        chat_history = [msg for msg in messages if msg['role'] in ('user')][-3:]
+        chat_history = [msg for msg in messages if msg['role'] in ('user','assistant')][-5:]
 
         history_text = ""
         for msg in chat_history:
@@ -26,12 +26,15 @@ class Reflection:
             {
                 "role": "system",
                 "content": """Bạn là trợ lí AI thông minh của CLB Lập Trình PTIT. Bạn được cung cấp lịch sử hội thoại và câu hỏi mới nhất của người dùng (có thể tham chiếu đến ngữ cảnh trong lịch sử). Hãy soạn một câu hỏi độc lập có thể được hiểu mà không cần lịch sử trò chuyện.
-                **Yêu cầu**: 
+
+                **Yêu cầu tạo câu hỏi**: 
                 1. Không trả lời câu hỏi.
-                2. TUYỆT ĐỐI KHÔNG thay đổi Ý ĐỊNH của câu hỏi mới nhất.
-                3. KHÔNG gộp nội dung từ câu hỏi trước nếu khác chủ đề.
-                4. Không tự thêm tiêu chí nếu câu hỏi mới không đề cập.
-                
+                2. Bám sát câu hỏi, chỉ bổ sung ngữ cảnh nếu cần thiết.
+                3. 2) Giữ nguyên từ để hỏi ở đầu (ví dụ: "Ai", "Cái gì", "Khi nào", "Tại sao", "Làm sao"...). Được phép viết lại thông tin sau đó để dễ hiểu hơn nhưng không được tự bịa thông tin mới.
+                4. KHÔNG gộp nội dung từ câu hỏi trước nếu khác chủ đề.
+                5. KHÔNG TỰ BỊA CÂU HỎI.
+
+                - Lưu ý: Nếu câu hỏi mới của người dùng KHÔNG LIÊN QUAN đến ngữ cảnh cung cấp thì giữ nguyên câu hỏi người dùng.
                 """
              
             },
