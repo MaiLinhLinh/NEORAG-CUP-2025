@@ -98,9 +98,9 @@ else:
 from metrics_rag import calculate_metrics_retrieval, calculate_metrics_llm_answer
 
 df_retrieval_metrics = calculate_metrics_retrieval("CLB_PROPTIT.csv", "train_data_proptit.xlsx", embedding, vector_db, True) # đặt là True nếu là tập train, False là tập test
-df_llm_metrics = calculate_metrics_llm_answer("CLB_PROPTIT.csv", "train_data_proptit.xlsx", embedding, vector_db, True) # đặt là True nếu là tập train, False là tập test
+#df_llm_metrics = calculate_metrics_llm_answer("CLB_PROPTIT.csv", "train_data_proptit.xlsx", embedding, vector_db, True) # đặt là True nếu là tập train, False là tập test
 print(df_retrieval_metrics.head())
-print(df_llm_metrics.head())
+#print(df_llm_metrics.head())
 '''
 '''
 from dotenv import load_dotenv
@@ -111,13 +111,13 @@ print("check log")
 '''
 
 
-from metrics_rag import hit_k
-hit_k_value = hit_k("CLB_PROPTIT.csv", "train_data_proptit.xlsx",embedding, vector_db, k=3)
-print(f"precision@3: {hit_k_value:.4f}")
+from metrics_rag import ndcg_k
+ndcg_k_value = ndcg_k("CLB_PROPTIT.csv", "test_data_proptit.xlsx",embedding, vector_db, k=5)
+print(f"ndcg_k@3: {ndcg_k_value:.4f}")
 
 
 '''
-from metrics_rag import string_presence_k
-string_presence_k_value = string_presence_k("CLB_PROPTIT.csv","train_data_proptit.xlsx", embedding, vector_db, k= 3)
-print(f"string_presence@3: {string_presence_k_value:.4f}")
+from metrics_rag import noise_sensitivity_k
+noise_sensitivity_k_value = noise_sensitivity_k("CLB_PROPTIT.csv","train_data_proptit.xlsx", embedding, vector_db, k= 7)
+print(f"response_relevancy@3: {noise_sensitivity_k_value:.4f}")
 '''

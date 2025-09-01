@@ -443,7 +443,7 @@ def ndcg_k(file_clb_proptit, file_train, k=5):
 
 def context_precision_k(file_clb_proptit, file_train, k=5):
     df_clb = pd.read_csv(file_clb_proptit)
-    df_train = pd.read_excel(file_train)
+    df_train = pd.read_excel(file_train).head()
 
     total_precision = 0
 

@@ -1,5 +1,5 @@
 import pandas as pd
-
+import time
 import os
 from collections import defaultdict
 from functools import lru_cache
@@ -24,14 +24,14 @@ reranker = _get_reranker()           # lấy singleton; lần đầu mới khở
 
 def hit_k(file_clb_proptit, file_train_data_proptit, embedding, vector_db, k=5):
     
-
+    print("Đang chạy hit_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train_data_proptit)
 
     hits = 0
     total_queries = len(df_train)
 
-    
+    initial_top_n = max(2*k, k)
     for index, row in df_train.iterrows():
         query = row['Query']
         ground_truth_doc = row['Ground truth document']
@@ -39,32 +39,19 @@ def hit_k(file_clb_proptit, file_train_data_proptit, embedding, vector_db, k=5):
         # Các em có thể dùng các kĩ thuật để viết lại câu query, Reranking, ... ở đoạn này.
         # Embedding câu query
 
-        '''
-        # Viết lại câu query bằng hyde
-        hyde_prompt = f"""
-        Bạn là một trợ lý chuyên nghiệp và hữu ích.
-        Hãy cung cấp một câu trả lời chi tiết và ngắn gọn cho câu hỏi sau.
-        Câu hỏi: {query}
-        """
-        llm = _get_llm()
-        hyde_response = llm.models.generate_content(model="gemini-2.5-flash", contents=hyde_prompt)
-        hyde_generated = hyde_response.text
-        print("\n🧪 [HyDE] Văn bản sinh ra:")
-        #print(hyde_generated)
-        # Encode đoạn văn giả định thay vì encode query gốc
-        user_embedding = embedding.encode(hyde_generated)
-        '''
+      
 
         user_embedding = embedding.encode(query)
         # Tìm kiếm thông tin liên quan đến câu query trong cơ sở dữ liệu
 
         # retrieve rộng trước rồi rerank lấy top k
-        results = vector_db.query("information", user_embedding, limit = 60)
+        results = vector_db.query("information", user_embedding, limit = initial_top_n)
         # rerank
-        
-        #cnt = 0
-        print("Kết quả tìm kiếm trước khi rerank:")
+        #results = vector_db.query("information", user_embedding, limit = k)
         '''
+        cnt = 0
+        print("Kết quả tìm kiếm trước khi rerank:")
+        
         for result in results:
             print (f"Văn bản số {cnt+1}:")
             print (f"Title: {result['title']}")
@@ -94,9 +81,10 @@ def hit_k(file_clb_proptit, file_train_data_proptit, embedding, vector_db, k=5):
                 reranked_results.append(r)
         
         reranked_results = reranked_results[:k]
+        '''
         #in ket qua sau reranking
         print("\n Kết quả sau rerank")
-        '''
+        
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
@@ -117,12 +105,13 @@ def hit_k(file_clb_proptit, file_train_data_proptit, embedding, vector_db, k=5):
 
 # Hàm recall@k
 def recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy recall_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
     reranker = _get_reranker()
     
     ans = 0
-    initial_top_n = max(10*k, k)
+    initial_top_n = max(2*k, k)
     for index, row in df_train.iterrows():
         hits = 0
         query = row['Query']
@@ -134,13 +123,13 @@ def recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
         results = vector_db.query("information", user_embedding, limit = initial_top_n)
-        print (f"Results size: {len(results)}")
+        #print (f"Results size: {len(results)}")
         #Rerank
         
         
-        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        #print("📄 Kết quả tìm kiếm trước khi rerank:")
         
-
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -159,15 +148,16 @@ def recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
         
-        #reranked_results = reranked_results[:k]
+        reranked_results = reranked_results[:k]
+        '''
         #in ket qua sau reranking
 
         # In kết quả sau reranking
-        print("\n📊 Kết quả sau khi rerank:")
+        #print("\n📊 Kết quả sau khi rerank:")
 
         
         # Lấy danh sách tài liệu được truy suất
-        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in reranked_results if 'title' in reranked_result]
+        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in results if 'title' in reranked_result]
         
         ground_truth_docs =  []
         if type(ground_truth_doc) is str:
@@ -183,11 +173,12 @@ def recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
 # Hàm precision@k
 def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy precision_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
 
     ans = 0
-    initial_top_n = max(10*k, k)
+    initial_top_n = max(5*k, k)
     for index, row in df_train.iterrows():
         hits = 0
         query = row['Query']
@@ -196,9 +187,10 @@ def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
         
         # Rerank
+        '''
         print("Kết quả trước rerank:")
 
         cnt = 0
@@ -210,7 +202,8 @@ def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             cnt+=1
             if cnt == 5:
                 break
-
+        '''
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -228,9 +221,10 @@ def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
         
-        #reranked_results = reranked_results[:k]
-
+        reranked_results = reranked_results[:k]
+        '''
         # In kết quả sau reranking
+        '''
         dem = 0
         print("\n📊 Kết quả sau khi rerank:")
         for i, r in enumerate (reranked_results):
@@ -240,8 +234,9 @@ def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             dem+= 1
             if dem == 5:
                 break
+        '''
         # Lấy danh sách tài liệu được truy suất
-        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in reranked_results if 'title' in reranked_result]
+        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in results if 'title' in reranked_result]
         
         # print(f"Retrieved documents: {retrieved_docs}")
         ground_truth_docs =  []
@@ -261,6 +256,7 @@ def precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
 # Hàm f1@k
 def f1_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy f1_k")
     precision = precision_k(file_clb_proptit, file_train, embedding, vector_db, k)
     recall = recall_k(file_clb_proptit, file_train, embedding, vector_db, k)
     if precision + recall == 0:
@@ -270,8 +266,9 @@ def f1_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 # Hàm MAP@k
 
 def map_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy map_k")
     df_clb = pd.read_csv(file_clb_proptit)
-    df_train = pd.read_excel(file_train).head(3)
+    df_train = pd.read_excel(file_train)
 
     total_map = 0
     initial_top_n = max(5*k, k)
@@ -284,9 +281,10 @@ def map_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
 
         # Rerank
+        '''
         print("Kết quả trước rerank:")
 
         cnt = 0
@@ -298,7 +296,8 @@ def map_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             if cnt == 5:
                 break
         print("-" *50)
-
+        '''
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -316,17 +315,19 @@ def map_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
         
-        #reranked_results = reranked_results[:k]
+        reranked_results = reranked_results[:k]
+        '''
 
         # In kết quả sau reranking
+        '''
         print("\n📊 Kết quả sau khi rerank:")
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
         print("-" *50)
-
+        '''
         # Lấy danh sách tài liệu được truy suất
-        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in reranked_results if 'title' in reranked_result]
+        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in results if 'title' in reranked_result]
         # print(f"Retrieved documents: {retrieved_docs}")
         ground_truth_docs =  []
         if type(ground_truth_doc) is str:
@@ -349,11 +350,12 @@ def map_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
 # Hàm MRR@k
 def mrr_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy mrr_k")
     df_clb = pd.read_csv(file_clb_proptit)
-    df_train = pd.read_excel(file_train).head(3)
+    df_train = pd.read_excel(file_train)
 
     total_mrr = 0
-    initial_top_n = max(5*k,k)
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         query = row['Query']
         ground_truth_doc = row['Ground truth document']
@@ -362,9 +364,10 @@ def mrr_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
 
         # Rerank
+        '''
         print("Kết quả trước rerank:")
 
         cnt = 0
@@ -376,7 +379,9 @@ def mrr_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             if cnt == 5:
                 break
         print("-" *50)
+        '''
 
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -394,18 +399,19 @@ def mrr_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
         
-        #reranked_results = reranked_results[:k]
-
+        reranked_results = reranked_results[:k]
+        '''
         # In kết quả sau reranking
+        '''
         print("\n📊 Kết quả sau khi rerank:")
         print("\n📊 Kết quả sau khi rerank:")
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
         print("-" *50)
-
+        '''
         # Lấy danh sách tài liệu được truy suất
-        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in reranked_results if 'title' in reranked_result]
+        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in results if 'title' in reranked_result]
         # print(f"Retrieved documents: {retrieved_docs}")
         ground_truth_docs =  []
         if type(ground_truth_doc) is str:
@@ -447,11 +453,12 @@ def similarity(embedding1, embedding2):
 
 
 def ndcg_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy ndcg_k")
     df_clb = pd.read_csv(file_clb_proptit)
-    df_train = pd.read_excel(file_train).head(3)
+    df_train = pd.read_excel(file_train)
 
     total_ndcg = 0
-    initial_top_n = max(5*k,k)
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         query = row['Query']
         ground_truth_doc = row['Ground truth document']
@@ -459,9 +466,10 @@ def ndcg_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
 
         # Rerank
+        '''
         print("Kết quả trước rerank:")
 
         cnt = 0
@@ -473,7 +481,9 @@ def ndcg_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             if cnt == 5:
                 break
         print("-" *50)
+        '''
 
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -491,17 +501,18 @@ def ndcg_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
         
-        #reranked_results = reranked_results[:k]
-
+        reranked_results = reranked_results[:k]
+        '''
         # In kết quả sau reranking
+        '''
         print("\n📊 Kết quả sau khi rerank:")
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
         print("-" *50)
-
+        '''
         # Lấy danh sách tài liệu được truy suất
-        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in reranked_results if 'title' in reranked_result]
+        retrieved_docs = [int(reranked_result['title'].split()[-1]) for reranked_result in results if 'title' in reranked_result]
 
         ground_truth_docs = []
         if type(ground_truth_doc) is str:
@@ -536,11 +547,12 @@ def ndcg_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 # Hàm Context Precision@k (LLM Judged)
 
 def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy context_precision_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
 
     total_precision = 0
-    initial_top_n = max(5*k,k)
+    initial_top_n = max(10 *k,k)
     for index, row in df_train.iterrows():
         # TODO: Tạo ra LLM Answer, các em hãy tự viết phần system prompt
         messages = [
@@ -575,7 +587,8 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
         
         # rerank
         cnt = 0
-        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        #print("📄 Kết quả tìm kiếm trước khi rerank:")
+        '''
         for result in results:
             print(f"Văn bản số {cnt + 1}:")
             print(f"Title: {result['title']}")
@@ -584,7 +597,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             cnt += 1
             if(cnt == 5):
                 break
-        
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -606,12 +619,13 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
         reranker_passages = reranker_passages[:k]
 
         # In kết quả sau reranking
-        print("\n📊 Kết quả sau khi rerank:")
+        #print("\n📊 Kết quả sau khi rerank:")
+        '''
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
         print("-" *50)
-
+        '''
         #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         #context = "\n".join(reranker_passages)
         context = "\n".join(result["information"] for result in reranked_results)
@@ -633,10 +647,10 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
                 messages=messages
             )
         reply = response.choices[0].message.content.strip()
-
-        print("In kết quả LLM reply:")
-        print(reply)
-        print("-" *50)
+        
+        #print("In kết quả LLM reply:")
+        #print(reply)
+        #print("-" *50)
 
         # Đẩy các đoạn văn được retrieved và câu trả lời của LLM vào một LLM Judged context với prompt system
         # LLM Judged context
@@ -664,17 +678,23 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             judged_reply = judged_response.choices[0].message.content.strip()
             if judged_reply == "1":
                 hits += 1
+            #print("LLM đánh giá xong 1 kết quả")
+            time.sleep(10)
+        #print("-" *50)
         precision = hits / k if k > 0 else 0
         total_precision += precision
+        time.sleep(20)
     return total_precision / len(df_train) if len(df_train) > 0 else 0
 
 
 # Hàm Context Recall@k (LLM Judged)
 def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy hàm context_recall_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
 
     total_recall = 0
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         hits = 0
         query = row['Query']
@@ -683,13 +703,53 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= k)
+        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+
+        # rerank
+        cnt = 0
+        #print("📄 Kết quả tìm kiếm trước khi rerank:")
+        '''
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        '''
         
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:k]
+        
+        
+        # In kết quả sau reranking
+
+        #print("\n📊 Kết quả sau khi rerank:")
+        
+        #print("Đã tìm kiếm được thông tin cho câu hỏi")
+
         reply = row['Ground truth answer']
         
 
         # NOTE: Các em có thể thay đổi messages_judged nếu muốn 
-        for result in results:
+        for result in reranked_results:
             messages_judged = [
                 {
                     "role": "system",
@@ -708,16 +768,21 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             judged_reply = judged_response.choices[0].message.content.strip()
             if judged_reply == "1":
                 hits += 1
+            time.sleep(5)
+            #print("LLM đã đánh giá được 1 query")
         recall = hits / k if k > 0 else 0
         total_recall += recall
+        time.sleep(10)
     return total_recall / len(df_train) if len(df_train) > 0 else 0
 
 # Hàm Context Entities Recall@k (LLM Judged)
 def context_entities_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
+    print("Đang chạy context_entities_recall_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
 
     total_recall = 0
+    initial_top_n = max(10*k, k)
     for index, row in df_train.iterrows():
         hits = 0
         query = row['Query']
@@ -725,10 +790,46 @@ def context_entities_recall_k(file_clb_proptit, file_train, embedding, vector_db
         # Tạo embedding cho câu hỏi của người dùng
         user_embedding = embedding.encode(query)
 
+        reply = row['Ground truth answer']
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
         results = vector_db.query("information",user_embedding,limit= k)
+
+        # rerank
+        cnt = 0
+        #print("📄 Kết quả tìm kiếm trước khi rerank:")
+        '''
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        '''
+        '''
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:k]
+        '''
+        # In kết quả sau reranking
+        #print("\n📊 Kết quả sau khi rerank:")
         
-        reply = row['Ground truth answer']
         # Trích xuất các thực thể từ Ground truth answer bằng LLM
         # NOTE: Các em có thể thay đổi messages_entities nếu muốn
         messages_entities = [
@@ -765,6 +866,7 @@ def context_entities_recall_k(file_clb_proptit, file_train, embedding, vector_db
                     hits += 1
                     entities.remove(entity.strip())
         total_recall += hits / tmp if tmp > 0 else 0
+        time.sleep(15)
     return total_recall / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -814,11 +916,13 @@ def calculate_metrics_retrieval(file_clb_proptit, file_train , embedding, vector
 # Hàm String Presence
 
 def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
+    
+    print("Đang chạy string_presence_k")
     df_clb = pd.read_csv(file_clb_proptit)
     df_train = pd.read_excel(file_train)
 
     total_presence = 0
-    initial_top_n = max(5*k,k)
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         hits = 0
         query = row['Query']
@@ -826,10 +930,11 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information", user_embedding, limit= initial_top_n)
+        results = vector_db.query("information", user_embedding, limit= k)
         reply = row['Ground truth answer']
-
+        
         # rerank
+        '''
         cnt = 0
         print("📄 Kết quả tìm kiếm trước khi rerank:")
         for result in results:
@@ -840,7 +945,8 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
             cnt += 1
             if(cnt == 5):
                 break
-        
+        '''
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -858,18 +964,19 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
 
-        reranked_results = reranked_results[:k]
-
+        reranked_results = reranked_results[:(k+5)]
+        '''
+        '''
         # In kết quả sau reranking
         print("\n📊 Kết quả sau khi rerank:")
         for i, r in enumerate (reranked_results):
             print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
             print(r.get('information', ''))
         print("-" *50)
-
+        '''
         #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         #context = "\n".join(reranker_passages)
-        context = "\n".join(result["information"] for result in reranked_results)
+        context = "\n".join(result["information"] for result in results)
 
         new_context =  f"\nCâu hỏi: {query}\n" + f"\nThông tin liên quan:\n{context}"
         messages = [
@@ -902,11 +1009,11 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
                 messages=messages
             )
         response = response.choices[0].message.content.strip()
-
+        '''
         print("In kết quả LLM reply:")
         print(response)
         print("-" *50)
-
+        '''
         # Trích xuất các thực thể từ câu trả lời bằng LLM
         # NOTE: Các em có thể thay đổi message_entities nếu muốn
         messages_entities = [
@@ -939,6 +1046,7 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
                 # print(f"Entity '{entity.strip()}' found in response.")
         hits /= len(entities) if len(entities) > 0 else 0
         total_presence += hits
+        time.sleep(15)
     return total_presence / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -953,7 +1061,7 @@ def rouge_l_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
     rouge = Rouge()
     total_rouge_l = 0
-
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         query = row['Query']
         # Tạo embedding cho câu hỏi của người dùng
@@ -961,24 +1069,66 @@ def rouge_l_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
         results = vector_db.query("information", user_embedding, limit=k)
+        # rerank
+        '''
+        cnt = 0
+        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        '''
+        '''
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:(k+5)]
+        '''
+        '''
+        # In kết quả sau reranking
+        print("\n📊 Kết quả sau khi rerank:")
+        for i, r in enumerate (reranked_results):
+            print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
+            print(r.get('information', ''))
+            print("-" *50)
+        '''
         reply = row['Ground truth answer']
         messages = [
             {
                 "role": "system",
                 "content": """Bạn là một trợ lý AI chuyên cung cấp thông tin về Câu lạc bộ Lập trình ProPTIT.
-    Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
+                Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
 
-    Nguyên tắc trả lời:
-    1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
-    2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
-    3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
-    4. Tuyệt đối không suy đoán hoặc bịa thông tin.
-    5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
-    6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
+                Nguyên tắc trả lời:
+                1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
+                2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
+                3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
+                4. Tuyệt đối không suy đoán hoặc bịa thông tin.
+                5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
+                6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
 
-    Nhiệm vụ của bạn:
-    - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
-    """
+                Nhiệm vụ của bạn:
+                - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                """
             }
         ]
         context = "Content từ các tài liệu liên quan:\n"
@@ -990,10 +1140,15 @@ def rouge_l_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             "content": context + "\n\nCâu hỏi: " + query
         })
         # Gọi API để lấy câu trả lời
-        response = FIX_ME
+        response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+        response = response.choices[0].message.content.strip()
         scores = rouge.get_scores(response, reply)
         rouge_l = scores[0]['rouge-l']['f']
         total_rouge_l += rouge_l
+        time.sleep(5)
     return total_rouge_l / len(df_train) if len(df_train) > 0 else 0
 
 # Hàm BLEU-4
@@ -1004,22 +1159,77 @@ def bleu_4_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
     total_bleu_4 = 0
     smoothing_function = SmoothingFunction().method1
-
+    initial_top_n = max(10*k, k)
     for index, row in df_train.iterrows():
         query = row['Query']
         # Tạo embedding cho câu hỏi của người dùng
-        user_embedding = FIX_ME
+        user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = FIX_ME
+        results = vector_db.query("information", user_embedding, limit=k)
+        # rerank
+        '''
+        cnt = 0
+        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:(k+5)]
+        
+        # In kết quả sau reranking
+        print("\n📊 Kết quả sau khi rerank:")
+        for i, r in enumerate (reranked_results):
+            print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
+            print(r.get('information', ''))
+            print("-" *50)
+
+        '''
         reply = row['Ground truth answer']
         messages = [
             {
                 "role": "system",
-                "content": FIX_ME
+                "content": """Bạn là một trợ lý AI chuyên cung cấp thông tin về Câu lạc bộ Lập trình ProPTIT.
+                Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
+
+                Nguyên tắc trả lời:
+                1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
+                2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
+                3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
+                4. Tuyệt đối không suy đoán hoặc bịa thông tin.
+                5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
+                6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
+
+                Nhiệm vụ của bạn:
+                - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                """
             }
         ]
-        context = FIX_ME
+        context = "Content từ các tài liệu liên quan:\n"
+        context += "\n".join([result["information"] for result in results])
 
         # Sửa content nếu muốn
         messages.append({
@@ -1027,11 +1237,17 @@ def bleu_4_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             "content": context + "\n\nCâu hỏi: " + query
         })
         # Gọi  API để lấy câu trả lời
-        response = FIX_ME
+        response = embedding.client.chat.completions.create(
+            model = "gpt-4o-mini",
+            messages = messages
+        )
+        response = response.choices[0].message.content.strip()
+        
         reference = reply.split()
         candidate = response.split()
         bleu_4 = sentence_bleu([reference], candidate, smoothing_function=smoothing_function)
         total_bleu_4 += bleu_4
+        time.sleep(5)
     return total_bleu_4 / len(df_train) if len(df_train) > 0 else 0
 
 # Hàm Groundedness (LLM Answer - Hallucination Detection)\
@@ -1041,24 +1257,79 @@ def groundedness_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
     df_train = pd.read_excel(file_train)
 
     total_groundedness = 0
-
+    initial_top_n = max(10*k, k)
     for index, row in df_train.iterrows():
         hits = 0
         cnt = 0
         query = row['Query']
         # Tạo embedding cho câu hỏi của người dùng
-        user_embedding = FIX_ME
+        user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = FIX_ME
+        results = vector_db.query("information", user_embedding, limit=k)
+        # rerank
+        '''
+        cnt = 0
+        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:k]
+        
+        # In kết quả sau reranking
+        print("\n📊 Kết quả sau khi rerank:")
+        for i, r in enumerate (reranked_results):
+            print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
+            print(r.get('information', ''))
+            print("-" *50)
+
+        '''
         reply = row['Ground truth answer']
         messages = [
             {
                 "role": "system",
-                "content": FIX_ME
+                "content": """Bạn là một trợ lý AI chuyên cung cấp thông tin về Câu lạc bộ Lập trình ProPTIT.
+                Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
+
+                Nguyên tắc trả lời:
+                1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
+                2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
+                3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
+                4. Tuyệt đối không suy đoán hoặc bịa thông tin.
+                5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
+                6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
+
+                Nhiệm vụ của bạn:
+                - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                """
             }
         ]
-        context = FIX_ME
+        context = "Content từ các tài liệu liên quan:\n"
+        context += "\n".join([result["information"] for result in results])
 
         # Thêm context vào messages, sửa content nếu muốn
         messages.append({
@@ -1066,8 +1337,12 @@ def groundedness_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             "content": context + "\n\nCâu hỏi: " + query
         })
         # Gọi  API để lấy câu trả lời
-        response = FIX_ME
-      
+        response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+        response = response.choices[0].message.content.strip()
+        
     
         # Tách response thành các câu
         sentences = response.split('. ')
@@ -1102,8 +1377,11 @@ def groundedness_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
                 "content": f"Question: {query}\n\nContexts: {context}\n\nAnswer: {sentence.strip()}"
             })
             # Gọi  API để đánh giá groundedness
-            groundedness_response = FIX_ME
-            groundedness_reply = FIX_ME
+            groundedness_response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages_groundedness
+            )
+            groundedness_reply = groundedness_response.choices[0].message.content.strip()
 
             if groundedness_reply == "supported":
                 hits += 1
@@ -1111,6 +1389,7 @@ def groundedness_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             elif groundedness_reply == "unsupported" or groundedness_reply == "contradictory":
                 cnt += 1
         total_groundedness += hits / cnt if cnt > 0 else 0
+        time.sleep(5)
     return total_groundedness / len(df_train) if len(df_train) > 0 else 0 
 
 # Hàm Response Relevancy (LLM Answer - Measures relevance)
@@ -1121,12 +1400,28 @@ def generate_related_questions(response, embedding):
     messages_related = [
         {
             "role": "system",
-            "content": """Bạn là một trợ lý AI chuyên tạo ra các câu hỏi liên quan từ một câu trả lời. Bạn sẽ được cung cấp một câu trả lời và nhiệm vụ của bạn là tạo ra các câu hỏi liên quan đến câu trả lời đó. Hãy tạo ra ít nhất 5 câu hỏi liên quan, mỗi câu hỏi nên ngắn gọn và rõ ràng. Trả lời dưới dạng list các câu hỏi như ở ví dụ dưới. LƯU Ý: Trả lời dưới dạng ["câu hỏi 1", "câu hỏi 2", "câu hỏi 3", ...], bao gồm cả dấu ngoặc vuông.
+            "content": """Bạn là một trợ lý AI chuyên tạo ra các câu hỏi liên quan từ một câu trả lời. Bạn sẽ được cung cấp một câu trả lời và nhiệm vụ của bạn là tạo ra các câu hỏi liên quan đến câu trả lời đó. 
+            Quy tắc:
+            1. Hãy tạo ra ít nhất 5 câu hỏi liên quan, mỗi câu hỏi nên ngắn gọn, rõ ràng và có thể tương đồng nhau.
+            2. Chỉ dựa trên thông tin chính có trong câu trả lời được cung cấp.
+            3. Trả lời dưới dạng list các câu hỏi như ở ví dụ dưới. LƯU Ý: Trả lời dưới dạng ["câu hỏi 1", "câu hỏi 2", "câu hỏi 3", ...], bao gồm cả dấu ngoặc vuông.
             Ví dụ:
             Câu trả lời: Câu lạc bộ Lập Trình PTIT (Programming PTIT), tên viết tắt là PROPTIT được thành lập ngày 9/10/2011. Với phương châm hoạt động "Chia sẻ để cùng nhau phát triển", câu lạc bộ là nơi giao lưu, đào tạo các môn lập trình và các môn học trong trường, tạo điều kiện để sinh viên trong Học viện có môi trường học tập năng động sáng tạo. Slogan: Lập Trình PTIT - Lập trình từ trái tim.
-            Output của bạn: "["CLB Lập Trình PTIT được thành lập khi nào?", "Slogan của CLB là gì?", "Mục tiêu của CLB là gì?"]"
+            Output của bạn: "["Thông tin cụ thể về CLB là gì?", "CLB Lập Trình PTIT được thành lập khi nào?", "Slogan của CLB là gì?", "Mục tiêu của CLB là gì?"]"
             Câu trả lời: Nếu bạn thuộc ngành khác bạn vẫn có thể tham gia CLB chúng mình. Nếu định hướng của bạn hoàn toàn là theo CNTT thì CLB chắc chắn là nơi phù hợp nhất để các bạn phát triển. Trở ngại lớn nhất sẽ là do bạn theo một hướng khác nữa nên sẽ phải tập trung vào cả 2 mảng nên sẽ cần cố gắng nhiều hơn.
-            Output của bạn: "["Ngành nào có thể tham gia CLB?", "CLB phù hợp với những ai?", "Trở ngại lớn nhất khi tham gia CLB là gì?"]"""
+            Output của bạn: "["Ngành nào có thể tham gia CLB?", "CLB phù hợp với những ai?", "Học ngành khác có được tham gia CLB không?"]
+            """
+            
+        },
+        {
+            "role": "developer",
+            "content": """
+            Quy trình tạo câu hỏi:
+            1. Trích các ý/ thuật ngữ/ đối tượng chính trong câu trả lời được cung cấp.
+            2. Sinh câu hỏi dạng who/what/when/where/how/why xoay quanh các ý đó.
+            3. Ưu tiên câu hỏi có thể trả lời trực tiếp từ văn bản gốc.
+            4. Loại bỏ câu hỏi mơ hồ hoặc đưa thông tin mới không có trong văn bản trả lời.
+            """
         }
     ]
     # Sửa content nếu muốn
@@ -1135,8 +1430,11 @@ def generate_related_questions(response, embedding):
         "content": f"Câu trả lời: {response}"
     })
     # Gọi  API để tạo ra các câu hỏi liên quan
-    related_response = FIX_ME
-    related_questions = FIX_ME
+    related_response = embedding.client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages_related
+    )
+    related_questions = related_response.choices[0].message.content.strip()
     return related_questions
 
 def response_relevancy_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
@@ -1144,42 +1442,107 @@ def response_relevancy_k(file_clb_proptit, file_train, embedding, vector_db, k=5
     df_train = pd.read_excel(file_train)
 
     total_relevancy = 0
-
+    initial_top_n = max(10*k, k)
     for index, row in df_train.iterrows():
         hits = 0
         cnt = 0
         query = row['Query']
         # Tạo embedding cho câu hỏi của người dùng
-        user_embedding = FIX_ME
+        user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = FIX_ME
+        results = vector_db.query("information", user_embedding, limit=initial_top_n)
+        # rerank
+        cnt = 0
+        '''
+        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        '''
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:(k + 5)]
+        '''
+        # In kết quả sau reranking
+        dem = 0
+        print("\n📊 Kết quả sau khi rerank:")
+        for i, r in enumerate (reranked_results):
+            print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
+            print(r.get('information', ''))
+            print("-" *50)
+            dem += 1
+            if dem == 5:
+                break
+
+        '''
         reply = row['Ground truth answer']
         messages = [
             {
                 "role": "system",
-                "content": FIX_ME
+                "content": """Bạn là một trợ lý AI chuyên cung cấp thông tin về Câu lạc bộ Lập trình ProPTIT.
+                Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
+
+                Nguyên tắc trả lời:
+                1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
+                2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
+                3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
+                4. Tuyệt đối không suy đoán hoặc bịa thông tin.
+                5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
+                6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
+
+                Nhiệm vụ của bạn:
+                - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                """
             }
         ]
-        context = FIX_ME
-
+        context = "Content từ các tài liệu liên quan:\n"
+        context += "\n".join([result["information"] for result in reranked_results])
         # Sửa content nếu muốn
         messages.append({
             "role": "user",
             "content": context + "\n\nCâu hỏi: " + query
         })
         # Gọi  API để lấy câu trả lời
-        response = FIX_ME
+        response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+        response = response.choices[0].message.content.strip()
+       
 
         # Dùng câu trả lời của LLM để sinh ra các câu hỏi liên quan
         related_questions = generate_related_questions(response, embedding) # "["CLB Lập Trình PTIT được thành lập khi nào?", "Slogan của CLB là gì?", "Mục tiêu của CLB là gì?"]"
+       
         related_questions = eval(related_questions) if related_questions else []  # Chuyển đổi chuỗi thành danh sách
         for question in related_questions:
-            question_embedding = FIX_ME
+            question_embedding = embedding.encode(question)
             # Tính score relevancy giữa câu hỏi và query
             score = similarity(user_embedding, question_embedding)
             hits += score
         total_relevancy += hits / len(related_questions) if len(related_questions) > 0 else 0
+        time.sleep(5)
     return total_relevancy / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -1190,24 +1553,85 @@ def noise_sensitivity_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
     df_train = pd.read_excel(file_train)
 
     total_sensitivity = 0
-
+    initial_top_n = max(10*k,k)
     for index, row in df_train.iterrows():
         hits = 0
         cnt = 0
         query = row['Query']
         # Tạo embedding cho câu hỏi của người dùng
-        user_embedding = FIX_ME
+        user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = FIX_ME
+        results = vector_db.query("information", user_embedding, limit=initial_top_n)
+        # rerank
+        '''
+        cnt = 0
+        print("📄 Kết quả tìm kiếm trước khi rerank:")
+        
+        for result in results:
+            print(f"Văn bản số {cnt + 1}:")
+            print(f"Title: {result['title']}")
+            print(f"Information: {result['information']}")
+            print("-" * 50)
+            cnt += 1
+            if(cnt == 5):
+                break
+        '''
+        passages = [result["information"] for result in results]
+        scores, reranker_passages = reranker(query, passages)
+
+        # (5) Map ngược passage -> result gốc để không mất title/metadata
+        #    Dùng dict {passage: [list các index]} để xử lý trường hợp passage trùng nhau
+        passage2idxs = defaultdict(list)
+        for idx, p in enumerate(passages):
+            passage2idxs[p].append(idx)
+
+        reranked_results = []
+        for s, p in zip(scores,  reranker_passages):
+            if passage2idxs[p]:
+                idx = passage2idxs[p].pop(0)   # lấy index đầu tiên khớp passage này
+                r = results[idx].copy()        # copy để không sửa object gốc (tuỳ bạn)
+                r["_rerank_score"] = float(s)
+                reranked_results.append(r)
+
+        reranked_results = reranked_results[:(k + 5)]
+
+        # In kết quả sau reranking
+        '''   
+        dem = 0
+        print("\n📊 Kết quả sau khi rerank:")
+        for i, r in enumerate (reranked_results):
+            print(f"Văn bản{i+1} | Score: {r.get('_rerank_score', 0):.4f}")
+            print(r.get('information', ''))
+            print("-" *50)
+            dem += 1
+            if dem == 5:
+                break
+        '''
+
+
         reply = row['Ground truth answer']
         messages = [
             {
                 "role": "system",
-                "content": FIX_ME
+                "content": """Bạn là một trợ lý AI chuyên cung cấp thông tin về Câu lạc bộ Lập trình ProPTIT.
+                Bạn sẽ nhận được dữ liệu ngữ cảnh (context) từ một hệ thống Retrieval-Augmented Generation (RAG) chứa các thông tin chính xác về CLB.
+
+                Nguyên tắc trả lời:
+                1. Chỉ sử dụng thông tin từ context được cung cấp để trả lời. Context sẽ được cung cấp ở đầu mỗi query của người dùng. Câu hỏi của người dùng nằm ở cuối. 
+                2. Nếu người dùng hỏi câu hỏi không liên quan đến CLB ProPTIT, hãy trả lời như bình thường, nhưng không sử dụng thông tin từ context
+                3. Trình bày câu trả lời rõ ràng, dễ hiểu. Có thể sử dụng emoij icon khi cần.
+                4. Tuyệt đối không suy đoán hoặc bịa thông tin.
+                5. Giữ phong cách trả lời thân thiện, chuyên nghiệp và nhất quán.
+                6. Trong context có thể chứa nhiều thông tin khác nhau, hãy tập trung vào câu hỏi của người dùng để trả lời chính xác nhất.
+
+                Nhiệm vụ của bạn:
+                - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                """
             }
         ]
-        context =  FIX_ME
+        context =  context = "Content từ các tài liệu liên quan:\n"
+        context += "\n".join([result["information"] for result in reranked_results])
 
         # Thêm context vào messages, sửa content nếu muốn
         messages.append({
@@ -1215,7 +1639,11 @@ def noise_sensitivity_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             "content": context + "\n\nCâu hỏi: " + query
         })
         # Gọi  API để lấy câu trả lời
-        response = FIX_ME
+        response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+        response = response.choices[0].message.content.strip()
 
         sentences = response.split('. ')
         for sentence in sentences:
@@ -1249,11 +1677,16 @@ def noise_sensitivity_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
                 "content": f"Question: {query}\n\nContexts: {context}\n\nAnswer: {sentence.strip()}"
             })
             # Gọi  API để đánh giá độ nhạy cảm
-            sensitivity_response = FIX_ME
+            sensitivity_response = embedding.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages_sensitivity
+            )
+            sensitivity_reply = sensitivity_response.choices[0].message.content.strip()
             sensitivity_reply = sensitivity_response.choices[0].message.content.strip()
             if sensitivity_reply == "0":
                 hits += 1
         total_sensitivity += hits / len(sentences) if len(sentences) > 0 else 0
+        time.sleep(5)
     return total_sensitivity / len(df_train) if len(df_train) > 0 else 0
 
 

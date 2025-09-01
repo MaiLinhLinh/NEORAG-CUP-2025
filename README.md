@@ -1,100 +1,72 @@
 # 🚀 NeoRAG Cup 2025
 
-## 1. Giới thiệu
-NeoRAG Cup 2025 là cuộc thi học thuật – kỹ thuật do **Team AI – CLB Lập trình ProPTIT** tổ chức, dành cho các bạn đam mê **Trí tuệ nhân tạo (AI)**, **Xử lý ngôn ngữ tự nhiên (NLP)** và **Kỹ thuật hệ thống**.  
+## Giới thiệu
+**RAG** - Chatbot RAG trả lời về CLB Lập Trình PTIT. Kiến trúc dùng semantic router, reflection, dense retrieval, cross-encoder reranker.
+**Tên kiến trúc:** RAG-Dense + Router + Reflection + Cross-Encoder Rerank
 
-Người tham gia sẽ:
-- Tự thiết kế, hiện thực hóa và trình bày một **pipeline RAG** (Retrieval-Augmented Generation) với domain là thông tin của CLB ProPTIT.
-- Trải nghiệm toàn bộ quy trình phát triển sản phẩm AI từ **ý tưởng → triển khai → demo**.
+**Tóm tắt:** User -> Semantic Router - > Reflection(rewrite) - > Dense retrieval (MongoDB + vectorSearch) -> Cross-encoder Reranker -> chọn top k -> LLM sinh câu trả lời.
 
----
+**Sơ đồ kiến trúc:**
 
-## 2. Thể lệ & Yêu cầu
-**Domain:** Thông tin liên quan đến CLB ProPTIT (lịch sử, thành viên, hoạt động, dự án, tài liệu nội bộ, v.v.)
 
-**Nhiệm vụ:**
-1. Thiết kế pipeline RAG hoàn chỉnh (kiến trúc, công nghệ, chiến lược index, retrieval, reranking, generation…).
-2. Triển khai code hiện thực pipeline.
-3. Chuẩn bị slide thuyết trình mô tả kiến trúc, giải pháp và kết quả.
-4. Chạy demo hệ thống trong buổi pitching.
-
-**Tài nguyên BTC cung cấp:**
-- Bộ dataset chuẩn về CLB PROPTIT.
-- Metrics benchmark: Context Recall, Context Precision, MRR, Hit@k, …
-
-**Hình thức dự thi:** Cá nhân.
+![alt text](image-1.png)
 
 ---
 
-## 3. Mốc thời gian
-- **Tuần 0:** Phát động cuộc thi, gửi dataset & benchmark metrics.
-- **Tuần 1–3:** Hoàn thiện pipeline, code và slide.
-- **Ngày Pitching:**
-  - Tối đa **30 phút** thuyết trình + **10 phút** Q&A.
-  - Chạy demo code trực tiếp (có thể dùng Streamlit).
+##  Luồng chi tiết
+**Router(semantic_router):** 
++ Chọn route ``info_CLB`` hay ``chitchat``
++ Route ``info_CLB``: rewrite câu hỏi bằng **Reflection**, encode câu hỏi bằng ``text-embedding-3-large``, truy vấn bằng vectorSearch trong MongoDB, **rerank** bằng cross-encoder, ghép context rồi gọi gpt-4o-mini trả lời.
++ Route ``chitchat``: trả lời tự nhiên, không dùng context CLB.
 
 ---
 
-## 4. Tiêu chí chấm điểm
-| Tiêu chí                  | Trọng số |
-|---------------------------|----------|
-| Kiến trúc pipeline        | 30%      |
-| Hiệu năng benchmark       | 40%      |
-| Chất lượng demo           | 20%      |
-| Kỹ năng thuyết trình      | 10%      |
-
----
-
-## 5. Giải thưởng
-🥇 **Giải Nhất:** 200.000 VNĐ + Giấy chứng nhận  
-🥈 **Giải Nhì:** 150.000 VNĐ + Giấy chứng nhận  
-🥉 **Giải Ba:** 100.000 VNĐ + Giấy chứng nhận  
-🌟 **Giải Tiềm Năng:** 50.000 VNĐ + Giấy chứng nhận  
-
----
-
-## 6. Đối tượng tham gia
-- Thành viên thuộc **Team AI – CLB Lập trình ProPTIT**
-
-📌 Hãy sẵn sàng **sáng tạo & bứt phá** cùng NeoRAG Cup 2025!  
-💬 Mọi thắc mắc vui lòng comment hoặc inbox BTC để được giải đáp.
+## Các thành phần chính
+#### 1. Dense retrieval (Vector Search)
+- Truy xuất tài liệu bằng embedding: biến query thành vector rồi tìm k văn bản tương đồng nhất theo độ tương đồng (cosin).
+#### 2. Semantic routing
+- Bộ định tuyến phân loại ý định để quyết định có dùng RAG hay không (ở đây: ``info_CLB`` và ``chitchat``)
+- Điểm mạnh: Điều tiết đúng luồng giúp trả lời nhanh gọn
+- Điểm yếu: Nếu mẫu chưa đại diện thì có thể định tuyến sai
+#### 3. Rerank (Cross-Encoder)
+- Mô hình cross-encoder chấm điểm cặp (query, passage) để xếp hạng lại N ứng viên từ retrieval.
+#### 4. Reflection (Query Rewrite)
+- Viết lại truy vấn dựa vào lịch sử hội thoại để làm rõ ngữ cảnh, giúp embedding phù hợp hơn -> retrieval chuẩn hơn.
 
 ---
 
 ## 📊 Benchmark
 
-- Trong suốt cuộc thi, các bạn sẽ chỉ được cung cấp bộ dữ liệu train. Bộ dữ liệu test sẽ được BTC công bố vào ngày thi cuối cùng. Dưới đây là benchmark của baseline model — mục tiêu của bạn là xây dựng mô hình có hiệu năng vượt qua được baseline model.
-- Nhiệm vụ: Chỉnh sửa các file main.py, metrics_rag.py, vector_db.py và embeddings.py. Trong mỗi file đã được đánh dấu rõ vị trí cần chỉnh sửa — hãy đọc kỹ và thực hiện cẩn thận.
 
 ### **Retrieval – Train (100 query)** 
-| K  | hit@k | recall@k | precision@k | f1@k | map@k | mrr@k | ndcg@k | context_precision@k | context_recall@k | context_entities_recall@k |
-|----|-------|----------|-------------|------|-------|-------|--------|----------------------|------------------|---------------------------|
-| 3  | 0.31  | 0.19     | 0.12        | 0.15 | 0.23  | 0.23  | 0.25   | 0.63                 | 0.50             | 0.32                      |
-| 5  | 0.46  | 0.28     | 0.10        | 0.15 | 0.23  | 0.27  | 0.31   | 0.56                 | 0.44             | 0.37                      |
-| 7  | 0.57  | 0.35     | 0.09        | 0.15 | 0.23  | 0.28  | 0.35   | 0.54                 | 0.40             | 0.38                      |
+| K   | hit@k | recall@k | precision@k | f1@k  | map@k | mrr@k | ndcg@k | context_precision@k | context_recall@k | context_entities_recall@k |
+| --- | ----- | -------- | ----------- | ----- | ----- | ----- | ------ | ------------------- | ---------------- | ------------------------- |
+| 3   | 0.68  | 0.544    | 0.2         | 0.261 | 0.402 | 0.403 | 0.428  | 0.593               | 0.50             | 0.32                      |
+| 5   | 0.63  | 0.602    | 0.172       | 0.257 | 0.434 | 0.443 | 0.499  | 0.578               | 0.442            | 0.364                     |
+| 7   | 0.7   | 0.559    | 0.14        | 0.224 | 0.439 | 0.451 | 0.514  | 0.539               | 0.414            | 0.385                     |
 
 ### **LLM Answer – Train (100 query)**
-| K  | string_presence@k | rouge_l@k | bleu_4@k | groundedness@k | response_relevancy@k | noise_sensitivity@k |
-|----|-------------------|-----------|----------|----------------|----------------------|---------------------|
-| 3  | 0.35              | 0.21      | 0.03     | 0.57           | 0.80                 | 0.51                |
-| 5  | 0.40              | 0.23      | 0.03     | 0.61           | 0.80                 | 0.53                |
-| 7  | 0.41              | 0.22      | 0.04     | 0.64           | 0.80                 | 0.51                |
+| K   | string_presence@k | rouge_l@k | bleu_4@k | groundedness@k | response_relevancy@k | noise_sensitivity@k |
+| --- | ----------------- | --------- | -------- | -------------- | -------------------- | ------------------- |
+| 3   | 0.366             | 0.22      | 0.032    | 0.57           | 0.807                | 0.502               |
+| 5   | 0.389             | 0.224     | 0.036    | 0.62           | 0.803                | 0.52                |
+| 7   | 0.41              | 0.22      | 0.035    | 0.62           | 0.81                 | 0.521               |
 
 ---
 
 ### **Retrieval – Test (30 query)**
-| K  | hit@k | recall@k | precision@k | f1@k | map@k | mrr@k | ndcg@k | context_precision@k | context_recall@k | context_entities_recall@k |
-|----|-------|----------|-------------|------|-------|-------|--------|----------------------|------------------|---------------------------|
-| 3  | 0.23  | 0.06     | 0.08        | 0.07 | 0.12  | 0.12  | 0.15   | 0.34                 | 0.32             | 0.11                      |
-| 5  | 0.40  | 0.10     | 0.08        | 0.09 | 0.16  | 0.16  | 0.22   | 0.35                 | 0.29             | 0.15                      |
-| 7  | 0.47  | 0.13     | 0.08        | 0.10 | 0.17  | 0.17  | 0.24   | 0.31                 | 0.27             | 0.16                      |
+| K   | hit@k | recall@k | precision@k | f1@k  | map@k | mrr@k | ndcg@k | context_precision@k | context_recall@k | context_entities_recall@k |
+| --- | ----- | -------- | ----------- | ----- | ----- | ----- | ------ | ------------------- | ---------------- | ------------------------- |
+| 3   | 0.87  | 0.648    | 0.4         | 0.528 | 0.761 | 0.783 | 0.787  | 0.34                | 0.32             | 0.11                      |
+| 5   | 0.8   | 0.637    | 0.4         | 0.427 | 0.771 | 0.807 | 0.824  | 0.35                | 0.29             | 0.15                      |
+| 7   | 0.83  | 0.678    | 0.224       | 0.354 | 0.765 | 0.807 | 0.24   | 0.31                | 0.27             | 0.16                      |
 
 ### **LLM Answer – Test (30 query)**
-| K  | string_presence@k | rouge_l@k | bleu_4@k | groundedness@k | response_relevancy@k | noise_sensitivity@k |
-|----|-------------------|-----------|----------|----------------|----------------------|---------------------|
-| 3  | 0.18              | 0.14      | 0.01     | 0.33           | 0.79                 | 0.68                |
-| 5  | 0.16              | 0.15      | 0.01     | 0.30           | 0.79                 | 0.71                |
-| 7  | 0.21              | 0.15      | 0.02     | 0.39           | 0.80                 | 0.71                |
+| K   | string_presence@k | rouge_l@k | bleu_4@k | groundedness@k | response_relevancy@k | noise_sensitivity@k |
+| --- | ----------------- | --------- | -------- | -------------- | -------------------- | ------------------- |
+| 3   | 0.18              | 0.14      | 0.01     | 0.33           | 0.79                 | 0.68                |
+| 5   | 0.16              | 0.15      | 0.01     | 0.30           | 0.79                 | 0.71                |
+| 7   | 0.21              | 0.15      | 0.02     | 0.39           | 0.80                 | 0.71                |
 
 ---
 

@@ -14,6 +14,7 @@ from semantic_router.router import SemanticRouter
 from semantic_router.samples import info_CLBSample
 from semantic_router.samples import chitchatSample
 from collections import defaultdict
+from reflection import Reflection
 
 load_dotenv()
 
@@ -44,6 +45,7 @@ def init_session():
 
                 Nhiệm vụ của bạn:
                 - Trả lời các câu hỏi về CLB Lập trình ProPTIT: lịch sử, thành viên, hoạt động, sự kiện, dự án, nội quy, thành viên tiêu biểu, và các thông tin liên quan khác.
+                - Nếu câu hỏi không liên quan đến CLB ProPTIT thì trong câu trả lời không bao gồm bất cứ từ ngữ, thông tin về CLB.
                 """
             }
         ]
@@ -74,7 +76,12 @@ def setup():
 
 #Hàm xử lí truy vấn người dùng
 def handle_query(query, embedding, vector_db, reranker, router):
+
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
     #Sử dụng semantic_router
+
     
     route_result = router.guide(query)
     best_route = route_result[1] # lấy tên router
@@ -82,6 +89,9 @@ def handle_query(query, embedding, vector_db, reranker, router):
         best_route = "chitchat"
     st.chat_message("assistant").markdown(f"**[Định tuyến]:** `{best_route}`")
     if best_route == "info_CLB":
+        #reflection = Reflection(openai)
+
+        #rewritten_query = reflection._rewrite(st.session_state.messages, query)
     
         #embedding câu hỏi
         # Tạo embedding cho câu hỏi của người dùng
@@ -89,7 +99,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
 
             # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
         results = vector_db.query("information",user_embedding,limit= 60)
-            
+           
             # Rerank
         print("Kết quả trước rerank:")
 
@@ -102,7 +112,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
             cnt+=1
             if cnt == 5:
                 break
-
+        
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -120,8 +130,8 @@ def handle_query(query, embedding, vector_db, reranker, router):
                 r["_rerank_score"] = float(s)
                 reranked_results.append(r)
             
-            #reranked_results = reranked_results[:k]
-
+        reranked_results = reranked_results[:20]
+        
             # In kết quả sau reranking
         dem = 0
         print("\n📊 Kết quả sau khi rerank:")
@@ -132,7 +142,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
             dem+= 1
             if dem == 5:
                 break
-            
+           
 
             #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         context = "\n".join(result["information"] for result in reranked_results)
