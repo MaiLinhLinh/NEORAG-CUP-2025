@@ -111,9 +111,9 @@ print("check log")
 '''
 
 
-from metrics_rag import ndcg_k
-ndcg_k_value = ndcg_k("CLB_PROPTIT.csv", "test_data_proptit.xlsx",embedding, vector_db, k=5)
-print(f"ndcg_k@3: {ndcg_k_value:.4f}")
+from metrics_rag import noise_sensitivity_k
+noise_sensitivity_k_value = noise_sensitivity_k("CLB_PROPTIT.csv", "test_data_proptit.xlsx",embedding, vector_db, k=7)
+print(f"noise_sensitivity_k@3: {noise_sensitivity_k_value:.4f}")
 
 
 '''

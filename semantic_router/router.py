@@ -29,7 +29,7 @@ class SemanticRouter():
         scores.sort(reverse=True)
         best_score, best_name = scores[0]
         second = scores[1][0] if len(scores) > 1 else -1.0
-        if best_score < 0.25 or (best_score - second) < 0.05:
+        if best_score < 0.35 or (best_score - second) < 0.08:
             return (best_score, "uncertain")
         return scores[0]
 

@@ -581,7 +581,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
         
         # TODO: viết câu query của người dùng (bao gồm document retrieval và câu query)
         
@@ -597,6 +597,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             cnt += 1
             if(cnt == 5):
                 break
+        '''
         '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
@@ -617,7 +618,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
 
         reranked_results = reranked_results[:k]
         reranker_passages = reranker_passages[:k]
-
+        '''
         # In kết quả sau reranking
         #print("\n📊 Kết quả sau khi rerank:")
         '''
@@ -628,7 +629,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
         '''
         #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         #context = "\n".join(reranker_passages)
-        context = "\n".join(result["information"] for result in reranked_results)
+        context = "\n".join(result["information"] for result in results)
 
         new_context =  f"\nCâu hỏi: {query}\n" + f"\nThông tin liên quan:\n{context}"
         
@@ -654,7 +655,7 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
 
         # Đẩy các đoạn văn được retrieved và câu trả lời của LLM vào một LLM Judged context với prompt system
         # LLM Judged context
-        for result in reranked_results:
+        for result in results:
             # NOTE: Các em có thể chỉnh messages_judged nếu muốn
             messages_judged = [
                 {
@@ -679,11 +680,11 @@ def context_precision_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             if judged_reply == "1":
                 hits += 1
             #print("LLM đánh giá xong 1 kết quả")
-            time.sleep(10)
+            time.sleep(3)
         #print("-" *50)
         precision = hits / k if k > 0 else 0
         total_precision += precision
-        time.sleep(20)
+        time.sleep(5)
     return total_precision / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -703,7 +704,7 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         user_embedding = embedding.encode(query)
 
         # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= initial_top_n)
+        results = vector_db.query("information",user_embedding,limit= k)
 
         # rerank
         cnt = 0
@@ -718,7 +719,7 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             if(cnt == 5):
                 break
         '''
-        
+        '''
         passages = [result["information"] for result in results]
         scores, reranker_passages = reranker(query, passages)
 
@@ -738,7 +739,7 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
 
         reranked_results = reranked_results[:k]
         
-        
+        '''
         # In kết quả sau reranking
 
         #print("\n📊 Kết quả sau khi rerank:")
@@ -749,7 +750,7 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
         
 
         # NOTE: Các em có thể thay đổi messages_judged nếu muốn 
-        for result in reranked_results:
+        for result in results:
             messages_judged = [
                 {
                     "role": "system",
@@ -768,11 +769,11 @@ def context_recall_k(file_clb_proptit, file_train, embedding, vector_db, k=5):
             judged_reply = judged_response.choices[0].message.content.strip()
             if judged_reply == "1":
                 hits += 1
-            time.sleep(5)
+            time.sleep(3)
             #print("LLM đã đánh giá được 1 query")
         recall = hits / k if k > 0 else 0
         total_recall += recall
-        time.sleep(10)
+        time.sleep(5)
     return total_recall / len(df_train) if len(df_train) > 0 else 0
 
 # Hàm Context Entities Recall@k (LLM Judged)
@@ -866,7 +867,7 @@ def context_entities_recall_k(file_clb_proptit, file_train, embedding, vector_db
                     hits += 1
                     entities.remove(entity.strip())
         total_recall += hits / tmp if tmp > 0 else 0
-        time.sleep(15)
+        time.sleep(5)
     return total_recall / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -1046,7 +1047,7 @@ def string_presence_k(file_clb_proptit, file_train, embedding, vector_db,  k=5):
                 # print(f"Entity '{entity.strip()}' found in response.")
         hits /= len(entities) if len(entities) > 0 else 0
         total_presence += hits
-        time.sleep(15)
+        time.sleep(5)
     return total_presence / len(df_train) if len(df_train) > 0 else 0
 
 
@@ -1686,7 +1687,7 @@ def noise_sensitivity_k(file_clb_proptit, file_train, embedding, vector_db, k=5)
             if sensitivity_reply == "0":
                 hits += 1
         total_sensitivity += hits / len(sentences) if len(sentences) > 0 else 0
-        time.sleep(5)
+        time.sleep(3)
     return total_sensitivity / len(df_train) if len(df_train) > 0 else 0
 
 

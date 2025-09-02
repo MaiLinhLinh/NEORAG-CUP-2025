@@ -79,14 +79,16 @@ def setup():
 def handle_query(query, embedding, vector_db, reranker, router):
 
     openai.api_key = os.getenv("OPENAI_API_KEY")
-
+    messages_for_answer: list[dict] = []
 
     #Sử dụng semantic_router
 
     
     route_result = router.guide(query)
     best_route = route_result[1] # lấy tên router
+    
     if best_route == "uncertain":
+       
         best_route = "chitchat"
         messages_for_answer = [
             {"role": "system", "content": st.session_state.messages[0]["content"]},
@@ -103,7 +105,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
         user_embedding = embedding.encode(rewritten_query)
 
             # Tìm kiếm thông tin liên quan trong cơ sở dữ liệu
-        results = vector_db.query("information",user_embedding,limit= 60)
+        results = vector_db.query("information",user_embedding,limit= 15)
            
             # Rerank
         print("Kết quả trước rerank:")
@@ -147,7 +149,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
             dem+= 1
             if dem == 5:
                 break
-           
+          
 
             #Ghép các đoạn tìm được thành một khối 'context' văn bản phẳng
         context = "\n".join(result["information"] for result in reranked_results)
@@ -190,7 +192,7 @@ def handle_query(query, embedding, vector_db, reranker, router):
     
 #--- Giao diện Streamlit----
 
-st.title("Chat Bot")
+st.title("CLB Lập Trình PTIT xin chào!")
 
 init_session()
 embedding, vector_db,router,reranker = setup()
